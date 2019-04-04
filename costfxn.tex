@@ -1,0 +1,218 @@
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[]{amsmath}
+\usepackage[english]{babel}
+\usepackage[]{amsthm} 
+\usepackage[]{amssymb} 
+\usepackage[]{mathrsfs}
+\usepackage[]{verbatim}
+\usepackage{graphicx}
+\usepackage[justification=centering]{caption}
+
+\graphicspath{{img/}}
+
+\DeclareMathOperator*{\argmax}{argmax}
+\DeclareMathOperator*{\argmin}{argmin}
+
+\title{K-means vs GMM Cost Function}
+\author{Thomas Athey}
+\date\today
+
+\begin{document}
+\maketitle
+\section{Problem Definition}
+\subsection{K-means}
+Say we have the dataset \[ X=\{x_1,x_2,\ldots,x_n\} \: \epsilon \: (R^p)^n \] that we seek to partition into $k$ clusters. The k-means algorithm seeks to find the partition $\mathscr{P}$ that minimizes the cost function:
+\begin{equation}
+\label{eq:j_km1}
+J_{km,p}(\mathscr{P};X) =  \sum\limits_{i=1}^k  \sum\limits_{x \epsilon \mathscr{P}_i} || x - \mu(\mathscr{P}_i)||_2^2
+\end{equation}
+where $\mu(\mathscr{P}_i)$ is the mean of the points in $\mathscr{P}_i$. Since the mean is the least squares estimator of a set of data, we know that $J_{km}$ is a lower bound to the more general cost function that is also a function of a set of means:
+
+\begin{equation}
+\label{eq:j_km_g}
+ J_{km,g}(\mathscr{P},\Theta;X)=  \sum\limits_{i=1}^k  \sum\limits_{x \epsilon \mathscr{P}_i} || x - \mu_i||_2^2
+\end{equation}
+\noindent
+where $\Theta=\{\mu_1...\mu_k\}$. Given a particular $\Theta$, it is easy to see that the partition $\mathscr{P}$ that minimizes \eqref{eq:j_km_g} is that which associates each datapoint to the closest mean. Let's denote the group assignment as $c_i$ and thus, the closest mean as $\mu_{c_i}$. Now, we can write an equivalent k-means cost function that depends on $\Theta$, and not $\mathscr{P}$:
+\begin{equation}
+\label{eq:j_km}
+J_{km}(\Theta;X) =  \sum\limits_{i=1}^n  || x - \mu_{c_i}||_2^2
+\end{equation}
+Note that:
+\[ \min_{\mathscr{P}} J_{km,p}(\mathscr{P};X) = \min_{\Theta} J_{km}(\Theta;X) \]
+
+
+\subsection{Maximum Likelihood Estimation for Gaussian Mixture}
+\quad
+Say we observe data, $X$, and we have a probability model for this data, $P(X;\Theta)$, but $\Theta$ is unknown. The maximum likelihood method estimates $\Theta$ as:
+\[ \Theta_{MLE} = \argmax_{\Theta} P(X;\Theta)  = \argmax_{\Theta} log P(X;\Theta) \] \quad
+If the observations are independent then we can factor $P(X;\Theta)$ into a product to obtain:
+\[ \Theta_{MLE} = \argmax_{\Theta} \sum\limits_{i=1}^n log P(x_i;\Theta) \]
+\noindent \quad
+In Gaussian mixture models (GMMs), we assume that the probability density of x is a weighted sum of Gaussian densities, and the parameters we are trying to estimate are the weights, means, and covariances (i.e. $\Theta = \{ (\tau_1,\mu_1,\Sigma_1),... (\tau_k,\mu_k,\Sigma_k)\}$). An intuitive interpretation of this model is that each datapoint has an associated hidden variable $z_i$ which denotes the particular Gaussian from which $x_i$ is generated:
+\[ P(x_i,z_i;\Theta) = P(z_i|\Theta)P(x_i|z_i;\Theta) = \tau_{z_i} N(x_i;\mu_{z_i}, \Sigma_{z_i})\]
+\[ P(x_i;\Theta) = \sum\limits_{z=1}^k P(z;\Theta)P(x_i|z;\Theta) =  \sum\limits_{z=1}^k \tau_z N(x_i;\mu_z, \Sigma_z)\]
+
+So, the function that we are trying to maximize is:
+\begin{equation}
+\label{eq:j_gmm}
+L_{gmm}(\Theta; X) =  \sum\limits_{i=1}^n log  \sum\limits_{z=1}^k \tau_z N(x_i;\mu_z, \Sigma_z)
+\end{equation}
+\noindent \quad
+An important results of maximum likelihood estimators is that in the case of independent observations, as the number of observations increases, the estimator will converge to the true parameter values.
+\\ \null \quad Once the parameters are obtained, datapoints can be assigned to a particular mixture according to the Bayes decision rule:
+\begin{equation}
+\label{eq:bayes_asgn}
+c_i = \argmax_j \tau_j N(x_i;\mu_j,\Sigma_j)
+\end{equation}
+
+\begin{comment} %************************
+This cost function is not convex, and there is no straightforward, efficient way to find its minimizer. So, in practice, the expectation-maximization (EM) algorithm is often used. After initializing $\Theta$, the EM algorithm consists of an Expectation (E) step, and a Maximization (M) step. In the E step, we compute the expected value of $J_{gmm}$ with respect to the conditional distribution of $Z$ given $X$ and the current parameter values ($\Theta^t$):
+
+\begin{equation}
+\label{eq:em_e}
+Q(\Theta ; \Theta^t) =  E_{Z|X,\Theta^t}[log P(X,Z;\Theta)]
+\end{equation}
+ In the GMM case, this becomes:
+\[ Q(\Theta ; \Theta^t) = \sum\limits_{i=1}^n E_{Z|X,\Theta^t}[log P(x_i,z_i;\Theta)] =  \sum\limits_{i=1}^n E_{Z|X,\Theta^t}[log( \tau_{z_i} N(x_i;\mu_{z_i}, \Sigma_{z_i}))] \]
+which we can calculate as:
+\begin{equation}
+\label{eq:em_e_gmm}
+Q(\Theta ; \Theta^t) =   \sum\limits_{i=1}^n  \sum\limits_{j=1}^k w_{i,j}(log(\tau_j) - \frac{1}{2}log(2\pi |\Sigma_j|) - \frac{1}{2}(x_i-\mu_j)^T\Sigma_j(x_i-\mu_j))
+\end{equation}
+where
+\[ w_{i,j} = P(z_i=j|x_i;\Theta^t) = \frac{\tau_j^t N(x_i;\mu_j^t,\Sigma_j^t)}{\sum\limits_{l=1}^k\tau_l^t N(x_i;\mu_l^t,\Sigma_l^t)} \]
+
+In the M step, we find the parameters that maximize the function found in the E step:
+\begin{equation}
+\label{eq:em_m}
+\Theta^{t+1} =  \argmax_{\Theta}Q(\Theta ; \Theta^t)
+\end{equation}
+
+In the GMM case, we achieve a closed form M-step:
+
+\begin{equation}
+\label{eq:em_m_gmm_tau}
+\tau_j^{t+1} = \frac{1}{n} \sum\limits_{i=1}^n w_{i,j}
+\end{equation}
+
+\begin{equation}
+\label{eq:em_m_gmm_mu}
+\mu_j^{t+1} = \frac{\sum\limits_{i=1}^n w_{i,j} x_i}{\sum\limits_{i=1}^n w_{i,j}} 
+\end{equation}
+
+\begin{equation}
+\label{eq:em_m_gmm_Sigma}
+\Sigma_j^{t+1} = \frac{\sum\limits_{i=1}^n w_{i,j} (x_i-\mu_j^{t+1})(x_i-\mu_j^{t+1})^T}{\sum\limits_{i=1}^n w_{i,j}}
+\end{equation}
+
+The important property of the EM algorithm is that the original cost function \eqref{eq:j_gmm} is guaranteed to increase with every parameter update from the M-step.
+\end{comment} %************************
+
+
+\subsection{Problem}
+\quad
+Minimizing \eqref{eq:j_km}, and maximizing \eqref{eq:j_gmm} followed by \eqref{eq:bayes_asgn} both result in a partition of the observations $X$ into k groups. Our goal is to investigate when and how these clustering procedures are related.
+
+
+
+
+\section{Connecting GMM and K-Means with a Simple Case} \label{simple_case}
+\subsection{GMM}
+Say we make the following assumptions in GMM estimation:
+\begin{itemize}
+\item $k=2$
+\item $\Sigma_i = I$
+\item $\tau_i = \frac{1}{2}$
+\end{itemize}
+
+\noindent Therefore, we only need to estimate the two mixture means, and our cost function becomes (after removing constants):
+\begin{equation}
+\label{eq:j_gmm_s}
+L_{gmm,s}(\{ \mu_1, \mu_2 \};X)= \sum\limits_{i=1}^n log(e^{-\frac{1}{2}||x_i-\mu_1||_2^2}+e^{-\frac{1}{2}||x_i-\mu_2||_2^2})
+\end{equation}
+
+\begin{comment} %****************
+In the EM algorithm, the E step involves calculating, for every $x_i$:
+\[ w_{i,1} = \frac{e^{-||x_i-\mu_1||_2^2}}{e^{-||x_i-\mu_1||_2^2}+e^{-||x_i-\mu_2||_2^2}}\]
+\[ w_{i,2} = \frac{e^{-||x_i-\mu_2||_2^2}}{e^{-||x_i-\mu_1||_2^2}+e^{-||x_i-\mu_2||_2^2}}\]
+Then the M step consists of calculating:
+\[ \tau_1^{t+1} =  \frac{1}{n} \sum\limits_{i=1}^n w_{i,1}, \; \; \; \tau_2^{t+1} =  \frac{1}{n} \sum\limits_{i=1}^n w_{i,2}\]
+\[\mu_1^{t+1} = \frac{\sum\limits_{i=1}^n w_{i,1} x_i}{\sum\limits_{i=1}^n w_{i,1}}, \;\;\; \mu_2^{t+1} = \frac{\sum\limits_{i=1}^n w_{i,2} x_i}{\sum\limits_{i=1}^n w_{i,2}} \]
+\end{comment} %*******************
+
+\subsection{Approximation of $J_{gmm,s}$}
+In \eqref{eq:j_gmm_s}, consider the approximation:
+\[ e^{-\frac{1}{2}||x_i-\mu_1||_2^2}+e^{-\frac{1}{2}||x_i-\mu_2||_2^2} \approx \max_{j} e^{-\frac{1}{2}||x_i-\mu_j||_2^2} \]
+If $|||x_i-\mu_1||_2^2 - ||x_i-\mu_2||_2^2| \ge 3$ then the approximation has less that 5\% error. \\
+
+\noindent With this approximation, we have:
+\[ L_{gmm,s}(\{ \mu_1, \mu_2 \};X) \approx -\frac{1}{2}\sum\limits_{i=1}^n ||x_i-\mu_{c_i}||_2^2\]
+where $c_i$ chooses the mean closest to $x_i$. Notice that this is the negation of the cost function in \eqref{eq:j_km}. Thus, even though the problems of k-means and GMM estimation are fundamentally different, they can be linked through this approximation.
+
+\section{Approximations of Other Cases, k=2} \label{cases}
+\quad
+In all of these cases, $c_i$ chooses the cluster membership that minimizes the cost function. Also, constants are removed from the sum within the log.
+\subsection{Unconstrained $\tau_i$}
+\[L_{gmm,s}(\{ \mu_1, \mu_2 \};X)= \sum\limits_{i=1}^n log(\tau_1 e^{-\frac{1}{2}||x_i-\mu_1||_2^2}+ \tau_2 e^{-\frac{1}{2}||x_i-\mu_2||_2^2})\]
+\[L_{gmm,s}(\{ \mu_1, \mu_2 \};X) \approx \sum\limits_{i=1}^n log(\tau_{c_i}) -\frac{1}{2}||x_i-\mu_{c_i}||_2^2\]
+
+\subsection{$\Sigma_i = v_iI$ }
+\[L_{gmm,s}(\{ \mu_1, \mu_2 \};X)= \sum\limits_{i=1}^n log(\frac{1}{v_1^{p/2}} e^{-\frac{1}{2v_1}||x_i-\mu_1||_2^2}+ \frac{1}{v_2^{p/2}} e^{-\frac{1}{2v_2}||x_i-\mu_2||_2^2})\]
+\[L_{gmm,s}(\{ \mu_1, \mu_2 \};X) \approx - \sum\limits_{i=1}^n  \frac{p}{2}log(v_{c_i}) + \frac{1}{2v_{c_i}}||x_i-\mu_{c_i}||_2^2\]
+
+\subsection{Unconstrained $\tau_i$, $\Sigma_i$}
+\[L_{gmm,s}(\{ \mu_1, \mu_2 \};X)= \sum\limits_{i=1}^n log(\frac{\tau_1}{\sqrt{|\Sigma_1|}} e^{-\frac{1}{2}(x_i-\mu_1)^T\Sigma_1^{-1}(x_i-\mu_1)}+ \frac{\tau_1}{\sqrt{|\Sigma_2|}} e^{-\frac{1}{2}(x_i-\mu_2)^T\Sigma_2^{-1}(x_i-\mu_2)})\]
+\[L_{gmm,s}(\{ \mu_1, \mu_2 \};X) \approx \sum\limits_{i=1}^n log(\tau_{c_i}) - \frac{1}{2}log(|\Sigma_{c_i}|) - \frac{1}{2}(x_i-\mu_{c_i})^T\Sigma_{c_i}^{-1}(x_i-\mu_{c_i})\]
+
+\section{Algorithms and Performance on Simple Synthetic Data} \quad
+The most popular algorithm for solving the problem presented in \ref{simple_case} is Lloyd's algorithm. Lloyd's algorithm consists of repeating two simple steps:
+
+\begin{enumerate}
+\item Partition datapoints according to the closest cluster centers
+\item Recalculate cluster centers as the mean of the corresponding datapoints
+\end{enumerate} 
+
+\noindent 
+\quad This algorithm is guaranteed to converge, and each iteration decreases the k means cost function \eqref{eq:j_km1}. However it is not guaranteed to converge to a global minima of the k means problem. \\ \null \quad
+Lloyd's algorithm can be extended to the cases presented in \ref{cases}. 
+\begin{enumerate} 
+\item Distance to mean is no longer the only component in the approximate log likelihood, so points should be assigned to the cluster that minimizes the appropriate log likelihood term
+\item Besides just keeping track of cluster means, the algorithm may need to compute the cluster proportions, and/or variance terms at each iteration.
+\end{enumerate}
+\noindent \quad Below we create simple synthetic datasets that correspond to each of the cases in \ref{cases} and compare the Lloyd's algorithm for k-means to the appropriately extended version of the algorithm.
+
+\subsection{Unconstrained $\tau_i$} 
+
+\begin{itemize}
+\item $\tau_1 = 0.01$, $\tau_2 = 0.99$
+\item $\mu_1 = [0,0]$, $\mu_2 = [10,0]$
+\item $\Sigma_1=\Sigma_2=I$
+\end{itemize}
+
+\begin{figure}
+\centering
+\includegraphics{unbalanced.jpg}
+\caption{ARI histograms of k-means and unbalanced algorithms}
+\end{figure}
+
+\begin{comment}
+\subsection{ $\Sigma_i=v_iI$} 
+
+\begin{itemize}
+\item $\tau_1 = 0.5$, $\tau_2 = 0.5$
+\item $\mu_1 = [0,0]$, $\mu_2 = [10,0]$
+\item $\Sigma_1=0.1I$, $\Sigma_2=7I$
+\end{itemize}
+
+\begin{figure}
+\centering
+\includegraphics{spheres.jpg}
+\caption{ARI histograms of k-means and spheres algorithms}
+\end{figure}
+\end{comment}
+
+
+\end{document}
