@@ -1,9 +1,4 @@
 # kmeans_alt
+Includes costfxn latex document - an unfinished document trying to generalize the Lloyd's algorithm for other GMM forms (and accompanying code to create figure 1)
 
-This code accompanies the short document "K-means vs GMM Cost Function" by Thomas Athey, as completed under a lab rotation with Dr. Joshua Vogelstein (https://neurodata.io/) during Spring 2019
-
-In short, this is the beginning of implementations of extensions of k-means for different GMM models.
-
-kmeans_alt.py is the script that calls functions from algs.py
-
-All that is required is numpy, matplotlib, and sklearn
+Also includes kmeans_bdr latex document - an unfinished document trying to prove when the optimal k means decision rule is the same as the Bayes optimal decision rule
